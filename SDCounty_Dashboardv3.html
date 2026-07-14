@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>San Diego County Waste Disposal Dashboard, 2018-2024</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f7f6f1;
+    --paper-panel: #ffffff;
+    --ink: #201f1c;
+    --ink-secondary: #5b5850;
+    --ink-tertiary: #8c8980;
+    --border: #e4e1d8;
+
+    --bin-blue: #1e5fa8;
+    --bin-blue-bg: #e9f1fa;
+    --bin-green: #2e7d4f;
+    --bin-green-bg: #eaf4ec;
+    --contam: #c1622d;
+    --contam-bg: #fbeee6;
+    --charcoal: #33322e;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.6; min-height: 100vh;
+  }
+  .mono { font-family: 'IBM Plex Mono', 'SF Mono', monospace; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 36px 24px 80px; }
+  header { margin-bottom: 26px; }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 27px;
+    letter-spacing: -0.01em; margin: 0 0 6px; color: var(--ink);
+  }
+  .subtitle { color: var(--ink-secondary); font-size: 13.5px; margin: 0; font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.01em; }
+
+  nav.tabs { display: flex; gap: 2px; border-bottom: 2px solid var(--charcoal); margin-bottom: 26px; flex-wrap: wrap; }
+  nav.tabs button {
+    appearance: none; border: none; background: none; padding: 11px 14px;
+    font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 600;
+    letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-tertiary);
+    cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: color 0.15s ease;
+  }
+  nav.tabs button:hover { color: var(--ink-secondary); }
+  nav.tabs button.active { color: var(--bin-blue); border-bottom-color: var(--bin-blue); }
+
+  .panel { display: none; background: var(--paper-panel); border: 1px solid var(--border); border-radius: 8px; padding: 28px; }
+  .panel.active { display: block; }
+  .panel h2 {
+    font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 600;
+    margin: 0 0 6px; color: var(--ink);
+  }
+  .panel h3 {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-secondary);
+    margin: 26px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .panel p.desc { font-size: 13.5px; color: var(--ink-secondary); margin: 0 0 18px; max-width: 720px; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .controls label { font-size: 12.5px; color: var(--ink-secondary); font-family: 'Space Grotesk', sans-serif; font-weight: 500; }
+  select, button.action {
+    font-family: 'Inter', sans-serif; font-size: 13px; padding: 7px 11px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--paper-panel); color: var(--ink);
+  }
+  button.action { cursor: pointer; font-weight: 500; }
+  button.action:hover { background: var(--paper); border-color: var(--ink-tertiary); }
+
+  .chart-wrap { position: relative; width: 100%; height: 320px; margin-bottom: 10px; }
+  .chart-wrap.tall { height: 380px; }
+  .chart-wrap.ranking { height: 460px; }
+
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; font-size: 12px; margin-bottom: 14px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 2px 0; }
+  .legend-row.dimmed { opacity: 0.35; }
+  .swatch { width: 12px; height: 3px; flex-shrink: 0; }
+  .legend-row span.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .footnote { font-size: 12px; color: var(--ink-tertiary); margin-top: 4px; line-height: 1.6; }
+  .footnote .mono { color: var(--ink-secondary); }
+
+  /* ---- Three distinct note types, each tied to a bin color ---- */
+  .note { border-radius: 6px; padding: 13px 15px; margin: 0 0 18px; font-size: 13px; line-height: 1.6; border: 1px solid transparent; }
+  .note strong { color: var(--ink); }
+  .note-eyebrow {
+    display: flex; align-items: center; gap: 7px; font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 7px;
+  }
+  .note-eyebrow .dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  .note-definition { background: var(--bin-blue-bg); border-color: rgba(30,95,168,0.18); }
+  .note-definition .note-eyebrow { color: var(--bin-blue); }
+  .note-definition .note-eyebrow .dot { background: var(--bin-blue); }
+
+  .note-methodology { background: var(--bin-green-bg); border-color: rgba(46,125,79,0.18); }
+  .note-methodology .note-eyebrow { color: var(--bin-green); }
+  .note-methodology .note-eyebrow .dot { background: var(--bin-green); }
+
+  .note-caveat { background: var(--contam-bg); border-color: rgba(193,98,45,0.22); }
+  .note-caveat .note-eyebrow { color: var(--contam); }
+  .note-caveat .note-eyebrow .dot { background: var(--contam); }
+
+  .note code {
+    font-family: 'IBM Plex Mono', monospace; background: rgba(0,0,0,0.06);
+    padding: 1px 5px; border-radius: 4px; font-size: 11.5px; color: var(--ink);
+  }
+
+  a { color: var(--bin-blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer a { color: var(--ink-secondary); }
+  footer {
+    margin-top: 30px; font-size: 11.5px; color: var(--ink-tertiary); text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  hr.section-divider { border: none; border-top: 1px solid var(--border); margin: 26px 0; }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 22px 14px 60px; }
+    .chart-wrap { height: 280px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>San Diego County waste disposal dashboard</h1>
+    <p class="subtitle">2018&ndash;2024 &middot; 19 JURISDICTIONS &middot; CALRECYCLE + CA DOF</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-panel="p1">Understanding the metrics</button>
+    <button class="tab-btn" data-panel="p4">Small multiples</button>
+    <button class="tab-btn" data-panel="p2">Tons per capita, absolute scale</button>
+    <button class="tab-btn" data-panel="p3">Percent of target, trend</button>
+    <button class="tab-btn" data-panel="p5">Heatmap &amp; improvement ranking</button>
+  </nav>
+
+  <!-- ================= PANEL 1: UNDERSTANDING THE METRICS ================= -->
+  <section id="p1" class="panel active">
+    <h2>Understanding the metrics</h2>
+    <p class="desc">CalRecycle publishes four disposal figures per jurisdiction per year. Before comparing any jurisdictions, it's worth understanding what each one actually measures &mdash; and why CalRecycle itself warns against comparing them directly.</p>
+
+    <div class="controls">
+      <label for="p1-juris">Jurisdiction</label>
+      <select id="p1-juris"></select>
+    </div>
+
+    <h3>01 &middot; Population target vs. annual</h3>
+    <div class="note note-definition">
+      <div class="note-eyebrow"><span class="dot"></span>What this measures</div>
+      <strong>Target</strong> is a ceiling, not a goal to hit &mdash; it's calibrated to that specific jurisdiction's own historical baseline, roughly equivalent to that jurisdiction achieving 50% diversion from where it started. <strong>Annual</strong> is what was actually disposed that year, per resident. Annual below Target = overperforming (diverting more than the baseline requires). Annual above Target = underperforming.
+    </div>
+    <div class="chart-wrap"><canvas id="p1-chart-pop" role="img" aria-label="Line chart of population disposal target and annual values by year"></canvas></div>
+    <div class="note note-caveat">
+      <div class="note-eyebrow"><span class="dot"></span>CalRecycle's own caveat</div>
+      These Annual/Target figures are jurisdiction-specific and not intended to be compared across cities. Each target reflects that jurisdiction's own baseline mix of residents, tourists, and commuters &mdash; a small tourist-heavy city and a large residential city can have very different targets without one having a "worse" waste system. See the "Percent of target" tabs for a more fairly comparable view.
+    </div>
+
+    <hr class="section-divider">
+
+    <h3>02 &middot; What does "Population Annual" actually measure?</h3>
+    <p class="desc">To check, we calculated tons per capita independently &mdash; raw disposal tonnage divided by population &mdash; using no CalRecycle baseline adjustments at all.</p>
+    <div class="note note-methodology">
+      <div class="note-eyebrow"><span class="dot"></span>Methodology</div>
+      Calculated as: <code>(Staff Reviewed Tons &times; 2,000 lbs/ton) &divide; (Population &times; 365 days)</code> &mdash; tons from the <a href="https://www2.calrecycle.ca.gov/LGCentral/AnnualReporting/DiversionDisposal" target="_blank" rel="noopener">CalRecycle Diversion/Disposal Progress Report</a>, population from the <a href="https://dof.ca.gov/forecasting/demographics/estimates/" target="_blank" rel="noopener">CA Dept of Finance E-4 estimates</a>. Independently calculated, not pulled pre-computed from either source.
+    </div>
+    <div class="chart-wrap"><canvas id="p1-chart-tpc" role="img" aria-label="Line chart comparing independently calculated tons per capita against reported population disposal annual"></canvas></div>
+    <p class="footnote">The two lines sit almost on top of each other. That's the point: <strong>Population Annual is, for practical purposes, tons of landfill-bound waste per resident per day</strong> &mdash; a real, physical quantity, just one that doesn't separate out non-resident waste generation (tourism, commuting workers, commercial activity). See the "Tons per capita, absolute scale" tab to see how large that gap gets across jurisdictions.</p>
+
+    <hr class="section-divider">
+
+    <h3>03 &middot; Employment target vs. annual</h3>
+    <div class="note note-definition">
+      <div class="note-eyebrow"><span class="dot"></span>What this measures</div>
+      Same total disposal tonnage as above, but divided by <strong>jobs located in the jurisdiction</strong> instead of residents. Employment Annual = pounds of trash &divide; number of jobs in that jurisdiction. It exists to capture the share of the waste stream driven by commercial activity, tourism, and commuters &mdash; people who generate waste there without being counted in the resident population.
+    </div>
+    <div class="chart-wrap"><canvas id="p1-chart-emp" role="img" aria-label="Line chart of employment disposal target and annual values by year"></canvas></div>
+    <p class="footnote">Same read as the population chart: below target = overperforming on a per-job basis, above = underperforming. Still jurisdiction-specific, still not directly comparable across cities.</p>
+
+    <hr class="section-divider">
+
+    <h3>04 &middot; Why do population and employment targets differ so much by jurisdiction?</h3>
+    <p class="desc">Because the two targets use different denominators for the same tonnage, the gap between them is really a proxy for how commercial/job-dense a jurisdiction is relative to its resident population &mdash; sorted here by employment target, highest first.</p>
+    <div class="chart-wrap tall"><canvas id="p1-chart-bar" role="img" aria-label="Horizontal bar chart comparing population and employment disposal targets for all 19 jurisdictions"></canvas></div>
+    <p class="footnote">Coronado and Del Mar sit at the extremes for opposite reasons. Coronado's employment target (<span class="mono">43.9</span>) is more than 3.5&times; its population target (<span class="mono">12.0</span>) &mdash; a small resident base against a large military/hotel/tourism job base. Del Mar's two targets are close together (<span class="mono">20.3</span> vs. <span class="mono">24.6</span>) because its small population is matched by an almost-equal-sized local commercial footprint. Wherever the two bars diverge sharply, expect the resident-only Annual figure to be the more misleading one for that jurisdiction.</p>
+  </section>
+
+  <!-- ================= PANEL 4: SMALL MULTIPLES ================= -->
+  <section id="p4" class="panel">
+    <h2>Small multiples, trend shape</h2>
+    <p class="desc">All 19 jurisdictions at once, one metric at a time. Each mini-chart auto-scales to its own range &mdash; built to compare <strong>trend shape</strong> (rising, falling, spiking) across jurisdictions, not absolute magnitude. For magnitude comparisons, use the "Tons per capita, absolute scale" tab instead.</p>
+    <div class="controls">
+      <select id="p4-metric">
+        <option value="targetAnnual" selected>Population target vs annual</option>
+        <option value="targetAnnualEmp">Employment target vs annual</option>
+        <option value="tonsPerCapita">Tons per capita (independently calculated)</option>
+      </select>
+    </div>
+    <div class="note note-definition" id="p4-explain-wrap"><div class="note-eyebrow"><span class="dot"></span>What you're looking at</div><span id="p4-explain"></span></div>
+    <div id="p4-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px;"></div>
+    <p class="footnote" id="p4-footnote"></p>
+  </section>
+
+  <!-- ================= PANEL 2: TONS PER CAPITA, ABSOLUTE SCALE ================= -->
+  <section id="p2" class="panel">
+    <h2>Tons per capita, absolute scale</h2>
+    <p class="desc">Same 19 jurisdictions, same metric as the small multiples tab &mdash; but plotted on one shared axis instead of 19 independently-scaled mini-charts, so absolute magnitude differences are visible.</p>
+    <div class="note note-caveat">
+      <div class="note-eyebrow"><span class="dot"></span>Reading this correctly</div>
+      This is the view where Del Mar's outlier status is actually visible: on a shared scale it sits at <span class="mono">12&ndash;20</span> lbs/person/day against a county-wide band of roughly <span class="mono">3&ndash;8</span> for almost everyone else. As covered in "Understanding the metrics," that's not necessarily worse waste management &mdash; it's what happens when a fairgrounds-and-racetrack commercial economy gets divided by a resident population of under 4,000. Coronado's line is volatile for the same reason (tourism/convention swings), not because its underlying waste programs are unstable year to year.
+    </div>
+    <div class="controls">
+      <button class="action" id="p2-all">Select all</button>
+      <button class="action" id="p2-none">Clear all</button>
+    </div>
+    <div class="legend" id="p2-legend"></div>
+    <div class="chart-wrap tall"><canvas id="p2-chart" role="img" aria-label="Line chart of tons per capita in pounds per person per day by jurisdiction, 2018 through 2024, shared scale"></canvas></div>
+    <p class="footnote">Click a legend row to isolate a jurisdiction. Remember: this metric moves almost identically to Population Annual PPD &mdash; it inherits the same resident-only-denominator caveat, it's just calculated independently rather than pulled from CalRecycle directly.</p>
+  </section>
+
+  <!-- ================= PANEL 3: PERCENT OF TARGET, TREND ================= -->
+  <section id="p3" class="panel">
+    <h2>Percent of target achieved, all 19 jurisdictions</h2>
+    <p class="desc">Annual disposal rate as a percentage of each jurisdiction's own target &mdash; the more fairly comparable cross-jurisdiction view, because it normalizes each jurisdiction against its own baseline instead of comparing absolute rates with different baselines.</p>
+    <div class="note note-caveat">
+      <div class="note-eyebrow"><span class="dot"></span>This still isn't a perfect fix</div>
+      Normalizing removes the absolute-scale distortion (a small tourist city's high target no longer makes it look artificially bad), but the same tourism/commuter/commercial confound can leak back in if a jurisdiction's economic mix shifted materially since its target's base year. Coronado's population-basis line swinging from <span class="mono">74%</span> to <span class="mono">102%</span> and back within a few years reflects tourism/convention cycles, not a real change in waste management performance. Check the "Understanding the metrics" tab's bar chart before treating any single jurisdiction's percent-of-target as a clean performance signal.
+    </div>
+    <div class="controls">
+      <select id="p3-basis">
+        <option value="popPct">Population basis</option>
+        <option value="empPct">Employment basis</option>
+      </select>
+      <button class="action" id="p3-all">Select all</button>
+      <button class="action" id="p3-none">Clear all</button>
+    </div>
+    <div class="legend" id="p3-legend"></div>
+    <div class="chart-wrap tall"><canvas id="p3-chart" role="img" aria-label="Line chart of percent of disposal target achieved by jurisdiction, 2018 through 2024, with a 100 percent reference line"></canvas></div>
+    <p class="footnote">Dashed line = 100% of target. Below the line = under target (overperforming relative to own baseline). Above = over target. Escondido is the only jurisdiction consistently over 100% on both bases.</p>
+  </section>
+
+  <!-- ================= PANEL 5: HEATMAP + IMPROVEMENT RANKING ================= -->
+  <section id="p5" class="panel">
+    <h2>Percent of target: heatmap &amp; improvement ranking</h2>
+    <p class="desc">Same percent-of-target data as the trend tab, laid out for two different questions: where does each jurisdiction stand right now (heatmap), and which jurisdictions are actually trending toward or away from their target over time (ranking below)?</p>
+    <div class="note note-caveat">
+      <div class="note-eyebrow"><span class="dot"></span>Same confound caveat applies</div>
+      Percent-of-target normalizes for each jurisdiction's own fixed baseline, but a row that looks like it's "getting worse" could reflect real underperformance, or a shift in that jurisdiction's tourism/commercial mix since its target was set &mdash; the two look identical in this view. Cross-check against the population-vs-employment target comparison in "Understanding the metrics" before drawing conclusions.
+    </div>
+
+    <div class="controls">
+      <select id="p5-basis">
+        <option value="popPct">Population basis</option>
+        <option value="empPct">Employment basis</option>
+      </select>
+      <select id="p5-sort">
+        <option value="recent">Sort: most recent value (2024)</option>
+        <option value="improve">Sort: most improving &rarr; most worsening</option>
+      </select>
+      <span style="font-size:11px; color:var(--ink-tertiary); font-family:'IBM Plex Mono',monospace;">UNDER TARGET</span>
+      <div style="display:flex;">
+        <span style="width:16px;height:10px;background:#085041;"></span>
+        <span style="width:16px;height:10px;background:#1D9E75;"></span>
+        <span style="width:16px;height:10px;background:#9FE1CB;"></span>
+        <span style="width:16px;height:10px;background:#F1EFE8;"></span>
+        <span style="width:16px;height:10px;background:#F0997B;"></span>
+        <span style="width:16px;height:10px;background:#D85A30;"></span>
+        <span style="width:16px;height:10px;background:#712B13;"></span>
+      </div>
+      <span style="font-size:11px; color:var(--ink-tertiary); font-family:'IBM Plex Mono',monospace;">OVER TARGET</span>
+    </div>
+    <div id="p5-grid" class="mono" style="display:grid; grid-template-columns:130px repeat(7, 1fr); gap:2px; font-size:11px;"></div>
+    <p class="footnote" id="p5-footnote"></p>
+
+    <hr class="section-divider">
+
+    <h3>Improvement ranking, 2018&ndash;2024</h3>
+    <p class="desc">Rather than just comparing 2018 to 2024 (sensitive to a single noisy year), this fits a trend line through all seven years per jurisdiction and ranks by that slope &mdash; percentage points of target per year. Negative = trending toward overperformance. Positive = trending toward underperformance.</p>
+    <div class="chart-wrap ranking"><canvas id="p5-rank-chart" role="img" aria-label="Horizontal bar chart ranking jurisdictions by their linear improvement trend in percent of target, most improving to most worsening"></canvas></div>
+    <p class="footnote" id="p5-rank-footnote"></p>
+  </section>
+
+  <footer>SOURCES: <a href="https://www2.calrecycle.ca.gov/LGCentral/AnnualReporting/DiversionDisposal" target="_blank" rel="noopener">CalRecycle Diversion/Disposal Progress Report</a> &middot; <a href="https://dof.ca.gov/forecasting/demographics/estimates/e-4-population-estimates-for-cities-counties-and-the-state-2011-2020-with-2010-and-2020-census-benchmark/" target="_blank" rel="noopener">CA DOF E-4 (2011&ndash;2020)</a> &middot; <a href="https://dof.ca.gov/forecasting/demographics/estimates/e-4-population-estimates-for-cities-counties-and-the-state-2021-2026-with-2020-census-benchmark/" target="_blank" rel="noopener">CA DOF E-4 (2021&ndash;2026)</a></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const DATA = {"years": [2018, 2019, 2020, 2021, 2022, 2023, 2024], "jurisdictions": ["Carlsbad", "Chula Vista", "Coronado", "Del Mar", "El Cajon", "Encinitas", "Escondido", "Imperial Beach", "La Mesa", "Lemon Grove", "National City", "Oceanside", "Poway", "San Diego", "San Diego-Unincorporated", "San Marcos", "Santee", "Solana Beach", "Vista"], "data": {"Carlsbad": {"popTarget": [8.4, 8.4, 8.4, 8.4, 8.4, 8.4, 8.4], "popAnnual": [7.8, 7.5, 7.9, 7.9, 7.1, 6.6, 6.2], "empTarget": [13.1, 13.1, 13.1, 13.1, 13.1, 13.1, 13.1], "empAnnual": [11.3, 10.9, 11.9, 12.8, 10.4, 9.3, 8.9], "tonsPerCapita": [7.83, 7.61, 7.93, 7.86, 7.07, 6.53, 6.23], "popPct": [92.9, 89.3, 94.0, 94.0, 84.5, 78.6, 73.8], "empPct": [86.3, 83.2, 90.8, 97.7, 79.4, 71.0, 67.9], "popSlope": -3.15, "empSlope": -3.25, "popRmse": 3.98, "empRmse": 7.31}, "Chula Vista": {"popTarget": [5.3, 5.3, 5.3, 5.3, 5.3, 5.3, 5.3], "popAnnual": [4.7, 4.1, 4.5, 4.1, 4.2, 4.2, 4.2], "empTarget": [22.8, 22.8, 22.8, 22.8, 22.8, 22.8, 22.8], "empAnnual": [18.4, 15.9, 17.7, 16.8, 15.8, 15.6, 15.4], "tonsPerCapita": [4.67, 4.08, 4.44, 4.07, 4.12, 4.18, 4.18], "popPct": [88.7, 77.4, 84.9, 77.4, 79.2, 79.2, 79.2], "empPct": [80.7, 69.7, 77.6, 73.7, 69.3, 68.4, 67.5], "popSlope": -1.09, "empSlope": -1.8, "popRmse": 3.31, "empRmse": 3.01}, "Coronado": {"popTarget": [12.0, 12.0, 12.0, 12.0, 12.0, 12.0, 12.0], "popAnnual": [8.9, 11.0, 10.6, 9.5, 9.2, 12.3, 9.6], "empTarget": [43.9, 43.9, 43.9, 43.9, 43.9, 43.9, 43.9], "empAnnual": [16.9, 22.2, 19.1, 19.3, 15.8, 25.6, 19.1], "tonsPerCapita": [8.97, 11.11, 10.54, 9.53, 9.12, 12.27, 9.57], "popPct": [74.2, 91.7, 88.3, 79.2, 76.7, 102.5, 80.0], "empPct": [38.5, 50.6, 43.5, 44.0, 36.0, 58.3, 43.5], "popSlope": 0.98, "empSlope": 0.82, "popRmse": 9.09, "empRmse": 6.74}, "Del Mar": {"popTarget": [20.3, 20.3, 20.3, 20.3, 20.3, 20.3, 20.3], "popAnnual": [18.0, 16.7, 13.7, 13.9, 15.9, 12.6, 14.5], "empTarget": [24.6, 24.6, 24.6, 24.6, 24.6, 24.6, 24.6], "empAnnual": [19.3, 18.1, 15.5, 20.5, 17.7, 12.6, 15.1], "tonsPerCapita": [19.78, 18.61, 14.75, 13.97, 15.91, 12.6, 14.55], "popPct": [88.7, 82.3, 67.5, 68.5, 78.3, 62.1, 71.4], "empPct": [78.5, 73.6, 63.0, 83.3, 72.0, 51.2, 61.4], "popSlope": -2.91, "empSlope": -3.11, "popRmse": 6.4, "empRmse": 8.15}, "El Cajon": {"popTarget": [7.4, 7.4, 7.4, 7.4, 7.4, 7.4, 7.4], "popAnnual": [5.7, 5.8, 5.9, 4.4, 6.1, 5.1, 5.5], "empTarget": [18.8, 18.8, 18.8, 18.8, 18.8, 18.8, 18.8], "empAnnual": [14.0, 14.0, 14.2, 11.5, 14.8, 11.5, 12.3], "tonsPerCapita": [5.72, 5.74, 5.7, 4.4, 6.09, 5.04, 5.51], "popPct": [77.0, 78.4, 79.7, 59.5, 82.4, 68.9, 74.3], "empPct": [74.5, 74.5, 75.5, 61.2, 78.7, 61.2, 65.4], "popSlope": -0.87, "empSlope": -1.81, "popRmse": 7.03, "empRmse": 5.74}, "Encinitas": {"popTarget": [7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5], "popAnnual": [5.7, 6.1, 5.8, 5.6, 5.7, 5.2, 5.1], "empTarget": [17.9, 17.9, 17.9, 17.9, 17.9, 17.9, 17.9], "empAnnual": [13.9, 14.8, 14.2, 14.2, 13.3, 11.1, 10.8], "tonsPerCapita": [5.88, 6.25, 5.86, 5.57, 5.66, 5.13, 5.07], "popPct": [76.0, 81.3, 77.3, 74.7, 76.0, 69.3, 68.0], "empPct": [77.7, 82.7, 79.3, 79.3, 74.3, 62.0, 60.3], "popSlope": -1.76, "empSlope": -3.52, "popRmse": 2.42, "empRmse": 4.3}, "Escondido": {"popTarget": [5.9, 5.9, 5.9, 5.9, 5.9, 5.9, 5.9], "popAnnual": [6.4, 6.4, 6.7, 6.8, 6.8, 6.7, 7.2], "empTarget": [16.5, 16.5, 16.5, 16.5, 16.5, 16.5, 16.5], "empAnnual": [17.5, 17.7, 18.7, 19.6, 18.3, 17.7, 18.5], "tonsPerCapita": [6.47, 6.46, 6.74, 6.76, 6.69, 6.63, 7.13], "popPct": [108.5, 108.5, 113.6, 115.3, 115.3, 113.6, 122.0], "empPct": [106.1, 107.3, 113.3, 118.8, 110.9, 107.3, 112.1], "popSlope": 1.87, "empSlope": 0.56, "popRmse": 2.07, "empRmse": 3.96}, "Imperial Beach": {"popTarget": [4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0], "popAnnual": [3.0, 3.0, 2.7, 3.3, 3.4, 3.5, 3.5], "empTarget": [38.6, 38.6, 38.6, 38.6, 38.6, 38.6, 38.6], "empAnnual": [23.9, 24.8, 22.9, 27.6, 25.0, 24.9, 26.1], "tonsPerCapita": [3.11, 3.11, 2.82, 3.3, 3.34, 3.44, 3.56], "popPct": [75.0, 75.0, 67.5, 82.5, 85.0, 87.5, 87.5], "empPct": [61.9, 64.2, 59.3, 71.5, 64.8, 64.5, 67.6], "popSlope": 2.86, "empSlope": 0.83, "popRmse": 4.16, "empRmse": 3.22}, "La Mesa": {"popTarget": [6.2, 6.2, 6.2, 6.2, 6.2, 6.2, 6.2], "popAnnual": [4.8, 4.6, 5.0, 4.0, 4.1, 4.3, 4.4], "empTarget": [13.8, 13.8, 13.8, 13.8, 13.8, 13.8, 13.8], "empAnnual": [10.8, 10.6, 11.5, 9.9, 10.3, 9.9, 9.6], "tonsPerCapita": [4.88, 4.67, 4.9, 3.99, 4.08, 4.22, 4.34], "popPct": [77.4, 74.2, 80.6, 64.5, 66.1, 69.4, 71.0], "empPct": [78.3, 76.8, 83.3, 71.7, 74.6, 71.7, 69.6], "popSlope": -1.55, "empSlope": -1.61, "popRmse": 4.47, "empRmse": 2.97}, "Lemon Grove": {"popTarget": [4.7, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7], "popAnnual": [4.4, 4.5, 5.1, 3.7, 3.9, 4.1, 4.5], "empTarget": [18.0, 18.0, 18.0, 18.0, 18.0, 18.0, 18.0], "empAnnual": [16.8, 16.7, 18.2, 14.4, 15.0, 15.2, 16.4], "tonsPerCapita": [4.4, 4.53, 4.96, 3.67, 3.9, 4.06, 4.46], "popPct": [93.6, 95.7, 108.5, 78.7, 83.0, 87.2, 95.7], "empPct": [93.3, 92.8, 101.1, 80.0, 83.3, 84.4, 91.1], "popSlope": -1.29, "empSlope": -1.47, "popRmse": 8.75, "empRmse": 6.05}, "National City": {"popTarget": [6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9], "popAnnual": [4.7, 4.8, 5.2, 5.1, 4.9, 5.3, 5.9], "empTarget": [20.7, 20.7, 20.7, 20.7, 20.7, 20.7, 20.7], "empAnnual": [12.3, 12.2, 13.4, 14.1, 12.8, 13.3, 14.4], "tonsPerCapita": [4.94, 5.08, 5.58, 5.42, 5.15, 5.38, 5.97], "popPct": [68.1, 69.6, 75.4, 73.9, 71.0, 76.8, 85.5], "empPct": [59.4, 58.9, 64.7, 68.1, 61.8, 64.3, 69.6], "popSlope": 2.22, "empSlope": 1.38, "popRmse": 3.08, "empRmse": 2.61}, "Oceanside": {"popTarget": [6.3, 6.3, 6.3, 6.3, 6.3, 6.3, 6.3], "popAnnual": [4.2, 4.2, 4.3, 4.4, 4.5, 4.7, 3.9], "empTarget": [29.4, 29.4, 29.4, 29.4, 29.4, 29.4, 29.4], "empAnnual": [16.7, 16.3, 16.7, 17.2, 16.3, 16.7, 13.5], "tonsPerCapita": [4.31, 4.3, 4.38, 4.37, 4.47, 4.67, 3.86], "popPct": [66.7, 66.7, 68.3, 69.8, 71.4, 74.6, 61.9], "empPct": [56.8, 55.4, 56.8, 58.5, 55.4, 56.8, 45.9], "popSlope": 0.16, "empSlope": -1.12, "popRmse": 3.72, "empRmse": 3.16}, "Poway": {"popTarget": [8.6, 8.6, 8.6, 8.6, 8.6, 8.6, 8.6], "popAnnual": [5.7, 5.6, 5.9, 5.9, 5.7, 5.3, 5.2], "empTarget": [17.3, 17.3, 17.3, 17.3, 17.3, 17.3, 17.3], "empAnnual": [9.2, 8.7, 8.9, 9.0, 8.5, 7.7, 7.7], "tonsPerCapita": [5.89, 5.79, 5.9, 5.92, 5.7, 5.29, 5.18], "popPct": [66.3, 65.1, 68.6, 68.6, 66.3, 61.6, 60.5], "empPct": [53.2, 50.3, 51.4, 52.0, 49.1, 44.5, 44.5], "popSlope": -0.95, "empSlope": -1.43, "popRmse": 2.24, "empRmse": 1.55}, "San Diego": {"popTarget": [8.4, 8.4, 8.4, 8.4, 8.4, 8.4, 8.4], "popAnnual": [6.1, 6.1, 5.9, 6.5, 6.4, 6.4, 6.4], "empTarget": [15.8, 15.8, 15.8, 15.8, 15.8, 15.8, 15.8], "empAnnual": [10.7, 10.5, 10.5, 11.7, 10.5, 10.4, 10.5], "tonsPerCapita": [6.21, 6.23, 6.1, 6.49, 6.36, 6.36, 6.41], "popPct": [72.6, 72.6, 70.2, 77.4, 76.2, 76.2, 76.2], "empPct": [67.7, 66.5, 66.5, 74.1, 66.5, 65.8, 66.5], "popSlope": 0.86, "empSlope": -0.18, "popRmse": 1.78, "empRmse": 2.66}, "San Diego-Unincorporated": {"popTarget": [6.8, 6.8, 6.8, 6.8, 6.8, 6.8, 6.8], "popAnnual": [5.5, 5.5, 6.1, 5.7, 5.6, 5.4, 5.2], "empTarget": [32.4, 32.4, 32.4, 32.4, 32.4, 32.4, 32.4], "empAnnual": [25.5, 25.6, 28.1, 27.2, 25.1, 24.0, 22.4], "tonsPerCapita": [5.44, 5.53, 6.0, 5.71, 5.61, 5.47, 5.2], "popPct": [80.9, 80.9, 89.7, 83.8, 82.4, 79.4, 76.5], "empPct": [78.7, 79.0, 86.7, 84.0, 77.5, 74.1, 69.1], "popSlope": -0.84, "empSlope": -1.71, "popRmse": 3.43, "empRmse": 4.22}, "San Marcos": {"popTarget": [8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9], "popAnnual": [5.4, 5.0, 4.9, 5.6, 5.3, 5.4, 5.0], "empTarget": [19.0, 19.0, 19.0, 19.0, 19.0, 19.0, 19.0], "empAnnual": [12.7, 11.9, 12.2, 14.1, 12.5, 12.2, 11.8], "tonsPerCapita": [5.59, 5.19, 5.08, 5.6, 5.27, 5.35, 5.03], "popPct": [60.7, 56.2, 55.1, 62.9, 59.6, 60.7, 56.2], "empPct": [66.8, 62.6, 64.2, 74.2, 65.8, 64.2, 62.1], "popSlope": 0.0, "empSlope": -0.33, "popRmse": 2.72, "empRmse": 3.73}, "Santee": {"popTarget": [6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5], "popAnnual": [5.2, 5.7, 5.6, 5.8, 4.8, 5.2, 4.7], "empTarget": [23.8, 23.8, 23.8, 23.8, 23.8, 23.8, 23.8], "empAnnual": [16.2, 18.9, 18.9, 21.0, 16.0, 17.1, 15.5], "tonsPerCapita": [5.09, 5.63, 5.34, 5.78, 4.7, 5.12, 4.72], "popPct": [80.0, 87.7, 86.2, 89.2, 73.8, 80.0, 72.3], "empPct": [68.1, 79.4, 79.4, 88.2, 67.2, 71.8, 65.1], "popSlope": -1.82, "empSlope": -1.3, "popRmse": 5.01, "empRmse": 7.34}, "Solana Beach": {"popTarget": [8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9], "popAnnual": [5.8, 5.0, 5.1, 4.6, 4.6, 6.8, 4.9], "empTarget": [16.7, 16.7, 16.7, 16.7, 16.7, 16.7, 16.7], "empAnnual": [9.7, 8.5, 9.0, 8.4, 7.3, 10.3, 6.5], "tonsPerCapita": [6.17, 5.36, 5.44, 4.63, 4.53, 6.79, 4.84], "popPct": [65.2, 56.2, 57.3, 51.7, 51.7, 76.4, 55.1], "empPct": [58.1, 50.9, 53.9, 50.3, 43.7, 61.7, 38.9], "popSlope": 0.16, "empSlope": -1.65, "popRmse": 8.22, "empRmse": 6.52}, "Vista": {"popTarget": [6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5], "popAnnual": [5.5, 5.5, 5.4, 5.8, 5.6, 5.6, 5.8], "empTarget": [17.7, 17.7, 17.7, 17.7, 17.7, 17.7, 17.7], "empAnnual": [15.0, 14.7, 14.9, 16.3, 15.3, 14.6, 15.4], "tonsPerCapita": [5.71, 5.68, 5.6, 5.73, 5.57, 5.51, 5.8], "popPct": [84.6, 84.6, 83.1, 89.2, 86.2, 86.2, 89.2], "empPct": [84.7, 83.1, 84.2, 92.1, 86.4, 82.5, 87.0], "popSlope": 0.72, "empSlope": 0.28, "popRmse": 1.62, "empRmse": 2.96}}};
+const YEARS = DATA.years;
+const NAMES = DATA.jurisdictions;
+const COLOR_LIST = ["#534AB7", "#0F6E56", "#993C1D", "#993556", "#5F5E5A", "#185FA5", "#3B6D11", "#854F0B", "#A32D2D", "#7F77DD", "#1D9E75", "#D85A30", "#D4537E", "#888780", "#378ADD", "#639922", "#BA7517", "#E24B4A", "#712B13"];
+const COLORS = {};
+NAMES.forEach((n,i) => COLORS[n] = COLOR_LIST[i % COLOR_LIST.length]);
+Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+Chart.defaults.color = '#5b5850';
+
+function baseScales(yTitle) {
+  return {
+    y: { title: { display: !!yTitle, text: yTitle || '', color: '#8c8980' }, ticks: { color: '#8c8980' }, grid: { color: 'rgba(140,137,128,0.15)' } },
+    x: { ticks: { color: '#8c8980' }, grid: { display: false } }
+  };
+}
+
+/* ---- Tabs ---- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.panel).classList.add('active');
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
+/* ---- Panel 1: Understanding the metrics ---- */
+(function() {
+  const jSel = document.getElementById('p1-juris');
+  NAMES.forEach(j => {
+    const o = document.createElement('option');
+    o.value = j; o.textContent = j;
+    if (j === 'San Diego') o.selected = true;
+    jSel.appendChild(o);
+  });
+
+  const palette = { target: '#8c8980', annual: '#1e5fa8', calc: '#c1622d', emp: '#2e7d4f' };
+  let chartPop, chartTpc, chartEmp, chartBar;
+
+  function render() {
+    const j = jSel.value;
+    const d = DATA.data[j];
+
+    if (chartPop) chartPop.destroy();
+    chartPop = new Chart(document.getElementById('p1-chart-pop'), {
+      type: 'line',
+      data: {
+        labels: YEARS,
+        datasets: [
+          { label: 'Population target (' + d.popTarget[0].toFixed(1) + ' lbs/person/day)', data: d.popTarget, borderColor: palette.target, borderDash: [5,4], pointRadius: 2, borderWidth: 2, fill: false, tension: 0 },
+          { label: 'Population annual', data: d.popAnnual, borderColor: palette.annual, pointRadius: 3, borderWidth: 2, fill: false, tension: 0.15 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } }, scales: baseScales('lbs / person / day') }
+    });
+
+    if (chartTpc) chartTpc.destroy();
+    chartTpc = new Chart(document.getElementById('p1-chart-tpc'), {
+      type: 'line',
+      data: {
+        labels: YEARS,
+        datasets: [
+          { label: 'Tons per capita (independently calculated)', data: d.tonsPerCapita, borderColor: palette.calc, pointRadius: 3, borderWidth: 2, fill: false, tension: 0.15 },
+          { label: 'Population annual (CalRecycle reported)', data: d.popAnnual, borderColor: palette.annual, borderDash: [3,3], pointRadius: 2, borderWidth: 2, fill: false, tension: 0.15 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } }, scales: baseScales('lbs / person / day') }
+    });
+
+    if (chartEmp) chartEmp.destroy();
+    chartEmp = new Chart(document.getElementById('p1-chart-emp'), {
+      type: 'line',
+      data: {
+        labels: YEARS,
+        datasets: [
+          { label: 'Employment target (' + d.empTarget[0].toFixed(1) + ' lbs/job/day)', data: d.empTarget, borderColor: palette.target, borderDash: [5,4], pointRadius: 2, borderWidth: 2, fill: false, tension: 0 },
+          { label: 'Employment annual', data: d.empAnnual, borderColor: palette.emp, pointRadius: 3, borderWidth: 2, fill: false, tension: 0.15 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } }, scales: baseScales('lbs / job / day') }
+    });
+  }
+
+  function renderBar() {
+    const sorted = NAMES.slice().sort((a,b) => DATA.data[b].empTarget[0] - DATA.data[a].empTarget[0]);
+    const popVals = sorted.map(n => DATA.data[n].popTarget[0]);
+    const empVals = sorted.map(n => DATA.data[n].empTarget[0]);
+    if (chartBar) chartBar.destroy();
+    chartBar = new Chart(document.getElementById('p1-chart-bar'), {
+      type: 'bar',
+      data: {
+        labels: sorted,
+        datasets: [
+          { label: 'Population target', data: popVals, backgroundColor: palette.annual, borderRadius: 2 },
+          { label: 'Employment target', data: empVals, backgroundColor: palette.emp, borderRadius: 2 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } } },
+        scales: {
+          x: { title: { display: true, text: 'lbs / (person or job) / day', color: '#8c8980' }, ticks: { color: '#8c8980' }, grid: { color: 'rgba(140,137,128,0.15)' } },
+          y: { ticks: { color: '#8c8980', font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  jSel.addEventListener('change', render);
+  render();
+  renderBar();
+})();
+
+/* ---- Panel 4: small multiples ---- */
+(function() {
+  const grid = document.getElementById('p4-grid');
+  const footnoteEl = document.getElementById('p4-footnote');
+  const explainEl = document.getElementById('p4-explain');
+  const metricSel = document.getElementById('p4-metric');
+  let charts = [];
+
+  const EXPLAIN = {
+    targetAnnual: 'Dashed = each jurisdiction\'s own population-basis target (a fixed ceiling, not a shared scale). Solid = actual annual rate. These are jurisdiction-specific and not meant to be compared across cities &mdash; watch each line\'s own movement relative to its own dashed target, not against other cards.',
+    targetAnnualEmp: 'Same idea, employment basis: dashed = target ceiling using jobs located in the jurisdiction as the denominator, solid = actual. Still jurisdiction-specific, still not a cross-city ranking scale.',
+    tonsPerCapita: 'Independently calculated (raw disposal tons &divide; population), not a CalRecycle figure. This closely tracks Population Annual, so the same non-comparability caveat applies. Each card is scaled to its own range here, so this view is for trend shape only. For absolute magnitude, use the "Tons per capita, absolute scale" tab.'
+  };
+  const FOOTNOTES = {
+    targetAnnual: 'Corner value = net change in Population Annual, 2018&rarr;2024. Green = declined (less landfill-bound waste per resident). Orange = increased.',
+    targetAnnualEmp: 'Corner value = net change in Employment Annual, 2018&rarr;2024. Green = declined. Orange = increased.',
+    tonsPerCapita: 'Corner value = net 2018&rarr;2024 change within that jurisdiction only. Because each card auto-scales, Del Mar\'s card does not visually stand out here the way it does on a shared axis &mdash; that\'s expected, not a data error.'
+  };
+
+  function seriesFor(name, metric) {
+    const d = DATA.data[name];
+    if (metric === 'targetAnnual') return { primary: d.popAnnual, secondary: d.popTarget };
+    if (metric === 'targetAnnualEmp') return { primary: d.empAnnual, secondary: d.empTarget };
+    return { primary: d.tonsPerCapita, secondary: null };
+  }
+
+  function render() {
+    const metric = metricSel.value;
+    explainEl.innerHTML = EXPLAIN[metric];
+    footnoteEl.innerHTML = FOOTNOTES[metric];
+    charts.forEach(c => c.destroy());
+    charts = [];
+    grid.innerHTML = '';
+
+    NAMES.forEach(name => {
+      const { primary, secondary } = seriesFor(name, metric);
+      const start = primary[0], end = primary[primary.length-1];
+      const delta = end - start;
+      const deltaColor = delta < 0 ? '#2e7d4f' : (delta > 0 ? '#c1622d' : '#5b5850');
+      const deltaLabel = (delta > 0 ? '+' : '') + delta.toFixed(1);
+
+      const cell = document.createElement('div');
+      cell.style.border = '1px solid var(--border)';
+      cell.style.borderRadius = '6px';
+      cell.style.padding = '8px';
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'baseline';
+      header.style.marginBottom = '2px';
+      header.innerHTML = '<span style="font-family:Space Grotesk,sans-serif; font-size:11px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:95px;">' + name + '</span><span class="mono" style="font-size:11px; font-weight:600; color:' + deltaColor + ';">' + deltaLabel + '</span>';
+      cell.appendChild(header);
+
+      if (secondary) {
+        const targetLabel = document.createElement('div');
+        targetLabel.className = 'mono';
+        targetLabel.style.fontSize = '10px';
+        targetLabel.style.color = 'var(--ink-tertiary)';
+        targetLabel.style.marginBottom = '2px';
+        targetLabel.textContent = 'target ' + secondary[0].toFixed(1);
+        cell.appendChild(targetLabel);
+      }
+
+      const canvasWrap = document.createElement('div');
+      canvasWrap.style.position = 'relative';
+      canvasWrap.style.height = '42px';
+      const canvas = document.createElement('canvas');
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', name + ' trend, 2018 to 2024, from ' + start + ' to ' + end);
+      canvasWrap.appendChild(canvas);
+      cell.appendChild(canvasWrap);
+      grid.appendChild(cell);
+
+      const datasets = [{ data: primary, borderColor: '#1e5fa8', borderWidth: 1.5, pointRadius: 0, tension: 0.2, fill: false }];
+      if (secondary) {
+        datasets.push({ data: secondary, borderColor: '#8c8980', borderDash: [3,2], borderWidth: 1, pointRadius: 0, tension: 0, fill: false });
+      }
+
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: { labels: YEARS, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } }
+        }
+      });
+      charts.push(chart);
+    });
+  }
+
+  metricSel.addEventListener('change', render);
+  render();
+})();
+
+/* ---- Panel 2: tons per capita, absolute scale ---- */
+(function() {
+  const legendEl = document.getElementById('p2-legend');
+  const datasets = NAMES.map(n => ({
+    label: n, data: DATA.data[n].tonsPerCapita, borderColor: COLORS[n], backgroundColor: COLORS[n],
+    borderWidth: 2, pointRadius: 2, tension: 0.15, fill: false
+  }));
+  const chart = new Chart(document.getElementById('p2-chart'), {
+    type: 'line',
+    data: { labels: YEARS, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'nearest', intersect: false } },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: baseScales('lbs / person / day')
+    }
+  });
+  NAMES.forEach((n, i) => {
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = '<span class="swatch" style="background:' + COLORS[n] + ';"></span><span class="label">' + n + '</span>';
+    row.addEventListener('click', () => {
+      const meta = chart.getDatasetMeta(i);
+      meta.hidden = meta.hidden === null ? true : !meta.hidden;
+      row.classList.toggle('dimmed', !!meta.hidden);
+      chart.update();
+    });
+    legendEl.appendChild(row);
+  });
+  document.getElementById('p2-all').addEventListener('click', () => {
+    NAMES.forEach((n,i) => chart.getDatasetMeta(i).hidden = false);
+    legendEl.querySelectorAll('.legend-row').forEach(r => r.classList.remove('dimmed'));
+    chart.update();
+  });
+  document.getElementById('p2-none').addEventListener('click', () => {
+    NAMES.forEach((n,i) => chart.getDatasetMeta(i).hidden = true);
+    legendEl.querySelectorAll('.legend-row').forEach(r => r.classList.add('dimmed'));
+    chart.update();
+  });
+})();
+
+/* ---- Panel 3: percent of target, trend ---- */
+(function() {
+  const basisSel = document.getElementById('p3-basis');
+  const legendEl = document.getElementById('p3-legend');
+  let chart;
+  function buildDatasets() {
+    const b = basisSel.value;
+    const ds = NAMES.map(n => ({
+      label: n, data: DATA.data[n][b], borderColor: COLORS[n], backgroundColor: COLORS[n],
+      borderWidth: 2, pointRadius: 2, tension: 0.15, fill: false
+    }));
+    ds.push({ label: '100% target', data: YEARS.map(() => 100), borderColor: '#8c8980', borderDash: [6,4], borderWidth: 1.5, pointRadius: 0, fill: false });
+    return ds;
+  }
+  function renderLegend() {
+    legendEl.innerHTML = '';
+    NAMES.forEach((n, i) => {
+      const row = document.createElement('div');
+      row.className = 'legend-row';
+      row.innerHTML = '<span class="swatch" style="background:' + COLORS[n] + ';"></span><span class="label">' + n + '</span>';
+      row.addEventListener('click', () => {
+        const meta = chart.getDatasetMeta(i);
+        meta.hidden = meta.hidden === null ? true : !meta.hidden;
+        row.classList.toggle('dimmed', !!meta.hidden);
+        chart.update();
+      });
+      legendEl.appendChild(row);
+    });
+  }
+  function render() {
+    const datasets = buildDatasets();
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('p3-chart'), {
+      type: 'line',
+      data: { labels: YEARS, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { mode: 'nearest', intersect: false } },
+        interaction: { mode: 'nearest', intersect: false },
+        scales: baseScales('% of target')
+      }
+    });
+    renderLegend();
+  }
+  basisSel.addEventListener('change', render);
+  document.getElementById('p3-all').addEventListener('click', () => {
+    NAMES.forEach((n,i) => chart.getDatasetMeta(i).hidden = false);
+    legendEl.querySelectorAll('.legend-row').forEach(r => r.classList.remove('dimmed'));
+    chart.update();
+  });
+  document.getElementById('p3-none').addEventListener('click', () => {
+    NAMES.forEach((n,i) => chart.getDatasetMeta(i).hidden = true);
+    legendEl.querySelectorAll('.legend-row').forEach(r => r.classList.add('dimmed'));
+    chart.update();
+  });
+  render();
+})();
+
+/* ---- Panel 5: heatmap + improvement ranking ---- */
+(function() {
+  const basisSel = document.getElementById('p5-basis');
+  const sortSel = document.getElementById('p5-sort');
+  const grid = document.getElementById('p5-grid');
+  const heatFootnote = document.getElementById('p5-footnote');
+  const rankFootnote = document.getElementById('p5-rank-footnote');
+  let rankChart;
+
+  function cellColor(v) {
+    const stops = [
+      [40, [8,80,65]], [70, [29,158,117]], [90, [159,225,203]],
+      [100, [241,239,232]], [110, [240,153,123]], [125, [216,90,48]], [150, [113,43,19]]
+    ];
+    if (v <= stops[0][0]) return 'rgb(' + stops[0][1].join(',') + ')';
+    if (v >= stops[stops.length-1][0]) return 'rgb(' + stops[stops.length-1][1].join(',') + ')';
+    let lo = stops[0], hi = stops[stops.length-1];
+    for (let i = 0; i < stops.length-1; i++) {
+      if (v >= stops[i][0] && v <= stops[i+1][0]) { lo = stops[i]; hi = stops[i+1]; break; }
+    }
+    const t = (v - lo[0]) / (hi[0] - lo[0]);
+    const rgb = lo[1].map((c,i) => Math.round(c + (hi[1][i]-c)*t));
+    return 'rgb(' + rgb.join(',') + ')';
+  }
+  function textColor(v) { return (v < 60 || v > 110) ? '#fff' : '#201f1c'; }
+
+  function renderHeatmap() {
+    const basis = basisSel.value;
+    const sortMode = sortSel.value;
+    grid.innerHTML = '';
+    let sorted;
+    if (sortMode === 'improve') {
+      const slopeKey = basis === 'popPct' ? 'popSlope' : 'empSlope';
+      sorted = NAMES.slice().sort((a,b) => DATA.data[a][slopeKey] - DATA.data[b][slopeKey]);
+      heatFootnote.innerHTML = 'Sorted most improving (top) to most worsening (bottom), based on the 2018&ndash;2024 trend slope &mdash; see the ranking chart below for the actual slope values.';
+    } else {
+      sorted = NAMES.slice().sort((a,b) => DATA.data[b][basis][6] - DATA.data[a][basis][6]);
+      heatFootnote.innerHTML = 'Sorted by most recent (2024) value. Escondido\'s row is the only one solidly over target (orange/red) across every year.';
+    }
+
+    grid.appendChild(document.createElement('div'));
+    YEARS.forEach(y => {
+      const h = document.createElement('div');
+      h.style.textAlign = 'center'; h.style.fontWeight = '600'; h.style.color = 'var(--ink-secondary)'; h.style.fontSize = '11px';
+      h.textContent = y;
+      grid.appendChild(h);
+    });
+
+    sorted.forEach(name => {
+      const label = document.createElement('div');
+      label.style.fontFamily = "'Inter', sans-serif";
+      label.style.fontSize = '11px';
+      label.style.display = 'flex'; label.style.alignItems = 'center';
+      label.style.overflow = 'hidden'; label.style.textOverflow = 'ellipsis'; label.style.whiteSpace = 'nowrap';
+      label.textContent = name;
+      grid.appendChild(label);
+
+      DATA.data[name][basis].forEach(v => {
+        const cell = document.createElement('div');
+        cell.style.background = cellColor(v);
+        cell.style.color = textColor(v);
+        cell.style.borderRadius = '3px';
+        cell.style.padding = '5px 2px';
+        cell.style.textAlign = 'center';
+        cell.style.fontSize = '11px';
+        cell.style.fontWeight = '500';
+        cell.textContent = Math.round(v);
+        grid.appendChild(cell);
+      });
+    });
+  }
+
+  function renderRanking() {
+    const basis = basisSel.value;
+    const slopeKey = basis === 'popPct' ? 'popSlope' : 'empSlope';
+    const rmseKey = basis === 'popPct' ? 'popRmse' : 'empRmse';
+    const sorted = NAMES.slice().sort((a,b) => DATA.data[a][slopeKey] - DATA.data[b][slopeKey]);
+    const vals = sorted.map(n => DATA.data[n][slopeKey]);
+    const rmses = sorted.map(n => DATA.data[n][rmseKey]);
+    const bgColors = vals.map(v => v < -1.5 ? '#2e7d4f' : v < 0 ? '#7fae91' : v < 1.5 ? '#e0a578' : '#c1622d');
+    const highRmseThreshold = 6;
+
+    if (rankChart) rankChart.destroy();
+    rankChart = new Chart(document.getElementById('p5-rank-chart'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map((n,i) => rmses[i] > highRmseThreshold ? n + ' *' : n),
+        datasets: [{ data: vals, backgroundColor: bgColors, borderRadius: 2 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => 'slope: ' + ctx.parsed.x.toFixed(2) + ' pts/yr' } } },
+        scales: {
+          x: { title: { display: true, text: 'percentage points of target per year (negative = improving)', color: '#8c8980' }, ticks: { color: '#8c8980' }, grid: { color: 'rgba(140,137,128,0.15)' } },
+          y: { ticks: { color: '#8c8980', font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+
+    rankFootnote.innerHTML = '<span class="mono">*</span> = volatile trend (RMSE &gt; ' + highRmseThreshold + ' pts around the fitted line) &mdash; read that jurisdiction\'s slope cautiously. On the population basis, Carlsbad, Del Mar, and Santee are the clearest steady improvers; Imperial Beach and National City are the clearest steady worseners. Notably, Carlsbad/Del Mar/Encinitas (the strongest improvers) are all North Coastal, while Imperial Beach/National City (the strongest worseners) are both South Bay and directly adjacent to each other &mdash; but Chula Vista, their South Bay neighbor, is improving on both bases. This is a real complication for a "borrow the neighbor\'s playbook" theory: adjacent jurisdictions with sharply different trajectories suggests the driver is jurisdiction-specific (contract terms, hauler, local ordinance) rather than a shared regional or demographic factor.';
+  }
+
+  basisSel.addEventListener('change', () => { renderHeatmap(); renderRanking(); });
+  sortSel.addEventListener('change', renderHeatmap);
+  renderHeatmap();
+  renderRanking();
+})();
+</script>
+</body>
+</html>
